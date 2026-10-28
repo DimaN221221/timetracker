@@ -1,0 +1,45 @@
+# Builds TimeTracker for Windows and publishes a release when a vX.Y.Z tag is pushed.
+# TimeTracker-windows-x64.zip and its .sha256 are exactly what the built-in updater downloads
+# (see src/TimeTracker/Core/Updater.cs).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Check that the tag matches <Version> in TimeTracker.csproj
+        shell: pwsh
+        run: |
+          [xml]$proj = Get-Content src/TimeTracker/TimeTracker.csproj
+          $v = ($proj.Project.PropertyGroup | Where-Object { $_.Version }).Version
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match <Version> ($v)" }
+
+      - name: Build
+        run: dotnet publish src/TimeTracker/TimeTracker.csproj -p:PublishProfile=Portable -nologo
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/TimeTracker.exe -DestinationPath dist/TimeTracker-windows-x64.zip -Force
+          $hash = (Get-FileHash dist/TimeTracker-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  TimeTracker-windows-x64.zip`n" | Out-File dist/TimeTracker-windows-x64.zip.sha256 -Encoding ascii -NoNewline
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/TimeTracker-windows-x64.zip
+            dist/TimeTracker-windows-x64.zip.sha256
+          generate_release_notes: true

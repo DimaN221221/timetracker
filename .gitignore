@@ -1,0 +1,8 @@
+.build/
+dist/
+.vs/
+*.user
+__pycache__/
+
+# the old Python version, kept only locally
+legacy/

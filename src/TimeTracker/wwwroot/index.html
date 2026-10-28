@@ -1,0 +1,1198 @@
+﻿<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TimeTracker</title>
+<script>
+  // Theme before first paint. The host injects window.ttTheme ("system" | "light" | "dark").
+  (function () {
+    var pref = window.ttTheme || "system";
+    var dark = pref === "dark" || (pref === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
+<style>
+/* ───────── tokens ───────── */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --surface-2: #eff2f4;
+  --hover: #e9edf0;
+  --line: #e1e5e9;
+  --line-strong: #cbd2d9;
+  --text: #141a21;
+  --muted: #586472;
+  --faint: #6a7583;
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --on-primary: #ffffff;
+  --primary-soft: #e3f3f1;
+  --primary-text: #0f766e;
+  --ok: #12a150;
+  --warn-bg: #fff6e5;
+  --warn-line: #f0d39b;
+  --warn-text: #7a4306;
+  --warn: #d97706;
+  --danger: #b42318;
+  --other: #a3adb8;
+  --inverse-bg: #141a21;
+  --inverse-text: #f3f5f7;
+  --inverse-link: #5eead4;
+  --ring: #14b8a6;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1214;
+  --surface: #161a1e;
+  --surface-2: #1e2329;
+  --hover: #232a31;
+  --line: #262d34;
+  --line-strong: #39414a;
+  --text: #e7eaed;
+  --muted: #9da7b2;
+  --faint: #808b97;
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --on-primary: #032b26;
+  --primary-soft: #10302c;
+  --primary-text: #5eead4;
+  --ok: #34d399;
+  --warn-bg: #2a200f;
+  --warn-line: #4d3a14;
+  --warn-text: #fcd34d;
+  --warn: #f59e0b;
+  --danger: #f97066;
+  --other: #5c6875;
+  --inverse-bg: #e7eaed;
+  --inverse-text: #0f1214;
+  --inverse-link: #0f766e;
+  --ring: #2dd4bf;
+}
+
+/* ───────── base ───────── */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.app {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 14px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ───────── buttons ───────── */
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.btn:hover:not(:disabled) { background: var(--hover); }
+.btn:disabled { opacity: .45; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-icon { width: 34px; padding: 0; justify-content: center; }
+.link-btn {
+  border: 0; background: none; padding: 4px 6px;
+  color: var(--primary-text); font-weight: 500; font-size: 13px; border-radius: 4px;
+}
+.link-btn:hover { text-decoration: underline; }
+
+/* ───────── top bar ───────── */
+.topbar { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.brand { display: flex; align-items: center; gap: 9px; font: 600 15px var(--font-display); letter-spacing: -.01em; }
+.brand svg { width: 22px; height: 22px; }
+.status {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 460px;
+  height: 30px; padding: 0 12px; margin-left: 6px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  color: var(--muted); font-size: 13px;
+}
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.status.is-paused .dot { background: var(--warn); }
+.status .now { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.spacer { flex: 1; }
+
+.banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--warn-line); border-radius: var(--radius);
+  background: var(--warn-bg); color: var(--warn-text);
+}
+.banner p { margin: 0; flex: 1; }
+.banner[hidden] { display: none; }
+.banner-info { border-color: var(--line); background: var(--primary-soft); color: var(--text); }
+.has-dot { position: relative; }
+.has-dot::after {
+  content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--surface);
+}
+.status-line { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.status-line.is-ok { color: var(--ok); }
+.status-line.is-accent { color: var(--primary-text); }
+.status-line.is-error { color: var(--danger); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* ───────── period bar ───────── */
+.periodbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.segmented { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--surface-2); }
+.segmented button {
+  height: 28px; padding: 0 14px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--muted); font-weight: 500; font-size: 13px;
+  transition: background-color .15s ease, color .15s ease;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button[aria-pressed="true"] { background: var(--surface); border-color: var(--line); color: var(--text); }
+.datenav { display: flex; align-items: center; gap: 4px; }
+.period-label { min-width: 230px; text-align: center; font: 600 15px var(--font-display); }
+
+/* ───────── summary ───────── */
+.summary { display: flex; align-items: flex-end; gap: 10px 28px; flex-wrap: wrap; padding: 2px 2px 0; }
+.total { font: 600 42px/1.05 var(--font-display); letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 18px; padding-bottom: 5px; color: var(--muted); font-size: 13px; }
+.meta b { color: var(--text); font-weight: 600; }
+
+/* ───────── cards ───────── */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px 18px; min-width: 0; }
+.card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; min-width: 0; }
+.card-head h2 { margin: 0; font: 600 14px var(--font-display); white-space: nowrap; }
+.card-sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.card-head .end { margin-left: auto; }
+.card[hidden] { display: none; }
+
+/* ───────── day timeline: one lane per program ───────── */
+.lanes { display: grid; grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) 96px; gap: 6px 14px; align-items: center; }
+.lane-name { display: flex; align-items: center; gap: 8px; min-width: 0; height: 26px; padding: 0 6px 0 2px; font-size: 13px; }
+.lane-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane-track {
+  position: relative; height: 24px; border-radius: 4px; background-color: var(--surface-2);
+  background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
+  background-size: calc(100% / var(--hours)) 100%;
+}
+.seg { position: absolute; top: 4px; bottom: 4px; min-width: 2px; border-radius: 2px; }
+.now-line { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; border-radius: 1px; pointer-events: none; }
+.lane-total { text-align: right; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axis { position: relative; height: 18px; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.axis span:first-child { transform: none; }
+.axis span:last-child { transform: translateX(-100%); }
+
+/* ───────── stacked columns (days / hours) ───────── */
+.cols { display: flex; align-items: stretch; gap: 4px; height: 210px; }
+.col {
+  flex: 1; min-width: 0; display: grid; grid-template-rows: 18px minmax(0, 1fr) 20px;
+  padding: 0; border: 0; border-radius: 4px; background: none; text-align: center;
+}
+.col-total { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.cols.is-dense .col-total { visibility: hidden; }
+.cols.is-dense .col:hover .col-total { visibility: visible; overflow: visible; }
+.col-plot { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-radius: 4px 4px 0 0; border-bottom: 1px solid var(--line-strong); transition: background-color .15s ease; }
+button.col:hover .col-plot { background: var(--hover); }
+.col-bar { display: flex; flex-direction: column-reverse; width: 100%; max-width: 64px; min-height: 0; border-radius: 3px 3px 0 0; overflow: hidden; }
+.cols.is-wide { gap: 12px; }
+.col.is-future .col-label { opacity: .5; }
+.col-bar i { display: block; flex: none; }
+.col-label { padding-top: 4px; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.col-label.is-today { color: var(--primary-text); font-weight: 600; }
+
+/* ───────── program list ───────── */
+.list { list-style: none; margin: 0; padding: 0; }
+.app-item { display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; border-radius: var(--radius-sm); }
+.app-item:hover { background: var(--hover); }
+.app-row {
+  display: grid; grid-template-columns: 10px minmax(120px, 260px) minmax(80px, 1fr) 110px 44px;
+  align-items: center; gap: 14px; height: 36px; padding: 0 4px 0 10px;
+}
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.app-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 3px; }
+.dur { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pct { text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.row-action {
+  width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: none; color: var(--muted); opacity: 0; transition: opacity .15s ease;
+}
+.row-action:hover { background: var(--surface); color: var(--text); }
+.app-item:hover .row-action, .row-action:focus-visible { opacity: 1; }
+.list-more { margin-top: 8px; }
+
+
+/* ───────── states ───────── */
+.state { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 30px 12px; text-align: center; color: var(--muted); }
+.state svg { width: 22px; height: 22px; color: var(--faint); margin-bottom: 4px; }
+.state b { color: var(--text); font-weight: 600; }
+.state p { margin: 0; max-width: 420px; }
+.state .btn { margin-top: 8px; }
+.state-error svg { color: var(--danger); }
+.sk { background: var(--surface-2); border-radius: 5px; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+
+/* ───────── tooltip & toast ───────── */
+#tip {
+  position: fixed; z-index: 30; max-width: 340px; padding: 7px 10px; border-radius: 6px;
+  background: var(--inverse-bg); color: var(--inverse-text); font-size: 12px; line-height: 1.5;
+  white-space: pre-line; pointer-events: none; opacity: 0; transition: opacity .1s ease;
+}
+#tip.is-on { opacity: 1; }
+#toast {
+  position: fixed; left: 50%; bottom: 22px; z-index: 40; transform: translate(-50%, 8px);
+  display: flex; align-items: center; gap: 14px; max-width: min(560px, calc(100vw - 32px));
+  padding: 9px 10px 9px 16px; border-radius: 8px; background: var(--inverse-bg); color: var(--inverse-text);
+  opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+}
+#toast.is-on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#toast button { border: 0; background: none; color: var(--inverse-link); font-weight: 600; padding: 4px 6px; border-radius: 4px; white-space: nowrap; }
+
+/* ───────── settings dialog ───────── */
+dialog {
+  width: min(580px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text);
+}
+dialog::backdrop { background: rgb(5 10 15 / .45); }
+.dlg { display: flex; flex-direction: column; max-height: calc(100vh - 50px); }
+.dlg-head { display: flex; align-items: center; padding: 14px 14px 10px 20px; }
+.dlg-head h2 { margin: 0; flex: 1; font: 600 17px var(--font-display); }
+.dlg-body { overflow: auto; padding: 0 20px 8px; }
+.dlg-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+.section { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.section:last-child { border-bottom: 0; }
+.section h3 { margin: 0 0 10px; font: 600 13px var(--font-display); color: var(--muted); }
+.field { display: flex; align-items: center; gap: 14px; }
+.field-text { flex: 1; min-width: 0; }
+.field-text label, .field-text .label { display: block; font-weight: 500; }
+.help { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.error-text { margin: 6px 0 0; color: var(--danger); font-size: 12.5px; }
+.switch {
+  appearance: none; flex: none; width: 38px; height: 22px; margin: 0; position: relative;
+  border-radius: 999px; background: var(--line-strong); transition: background-color .15s ease;
+}
+.switch::before {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: transform .15s ease;
+}
+.switch:checked { background: var(--primary); }
+.switch:checked::before { transform: translateX(16px); }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.stepper button { width: 32px; height: 32px; border: 0; background: var(--surface-2); font-size: 16px; }
+.stepper button:hover { background: var(--hover); }
+.stepper input { width: 52px; height: 32px; border: 0; text-align: center; background: var(--surface); -moz-appearance: textfield; }
+.stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.stepper + .unit { color: var(--muted); }
+.excl-list { list-style: none; margin: 0 0 10px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.excl-list li { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--line); }
+.excl-list li:last-child { border-bottom: 0; }
+.excl-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.excl-list .exe { color: var(--faint); font-size: 12px; }
+.excl-empty { padding: 12px; color: var(--muted); }
+.add-row { display: flex; gap: 8px; }
+.add-row input {
+  flex: 1; min-width: 0; height: 34px; padding: 0 10px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface);
+}
+
+@media (max-width: 1060px) {
+  .status { max-width: 300px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="var(--primary)"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="var(--on-primary)" stroke-width="1.8"/><path d="M12 8.4V12l2.6 1.6" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      TimeTracker
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="statusText">Облік ведеться</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="pauseBtn" type="button"></button>
+    <button class="btn btn-icon" id="exportBtn" type="button" aria-label="Експортувати період у CSV" title="Експортувати період у CSV">
+      <svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+    </button>
+    <button class="btn btn-icon" id="settingsBtn" type="button" aria-label="Налаштування" title="Налаштування">
+      <svg class="i" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  </header>
+
+  <div class="banner" id="pausedBanner" hidden>
+    <p>Облік на паузі — поки він вимкнений, час не записується.</p>
+    <button class="btn btn-primary" type="button" data-action="resume">Продовжити облік</button>
+  </div>
+
+  <div class="banner banner-info" id="updateBar" role="status" hidden>
+    <p id="updateText"></p>
+    <button class="btn btn-primary" type="button" data-action="update-go" id="updateGo"></button>
+    <button class="btn btn-ghost" type="button" data-action="update-later">Пізніше</button>
+  </div>
+
+  <section class="periodbar" aria-label="Період">
+    <div class="segmented" role="group" aria-label="Тривалість періоду">
+      <button type="button" data-mode="day">День</button>
+      <button type="button" data-mode="week">Тиждень</button>
+      <button type="button" data-mode="month">Місяць</button>
+      <button type="button" data-mode="all">Весь час</button>
+    </div>
+    <div class="datenav" id="datenav">
+      <button class="btn btn-ghost btn-icon" id="prevBtn" type="button" aria-label="Попередній період">
+        <svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <span class="period-label" id="periodLabel" aria-live="polite"></span>
+      <button class="btn btn-ghost btn-icon" id="nextBtn" type="button" aria-label="Наступний період">
+        <svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
+    <button class="link-btn" id="todayBtn" type="button" hidden>До сьогодні</button>
+  </section>
+
+  <section class="summary" aria-label="Підсумок">
+    <div class="total" id="total"><span class="sk" style="display:inline-block;width:220px;height:40px"></span></div>
+    <div class="meta" id="meta"></div>
+  </section>
+
+  <section class="card" id="chartCard">
+    <div class="card-head"><h2 id="chartTitle">Хронологія дня</h2><span class="card-sub" id="chartSub"></span></div>
+    <div id="chart"></div>
+  </section>
+
+  <section class="card" id="appsCard">
+    <div class="card-head"><h2>Програми</h2><span class="card-sub" id="appsSub"></span></div>
+    <div id="apps"></div>
+  </section>
+
+  <section class="card" id="hoursCard" hidden>
+    <div class="card-head"><h2>По годинах доби</h2><span class="card-sub">сумарно за період — коли ви найчастіше за комп'ютером</span></div>
+    <div id="hours"></div>
+  </section>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<div id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastAction" hidden></button></div>
+
+<dialog id="settings" aria-labelledby="settingsTitle">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h2 id="settingsTitle">Налаштування</h2>
+      <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Закрити">
+        <svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body" id="settingsBody"></div>
+    <div class="dlg-foot">
+      <button class="btn btn-ghost" type="button" id="dataFolderBtn">
+        <svg class="i" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+        Папка з даними
+      </button>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" type="button" data-close>Готово</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+/* ───────── host bridge (see MainWindow.xaml.cs) ───────── */
+const host = (() => {
+  const wv = window.chrome && window.chrome.webview;
+  const pending = new Map();
+  const listeners = {};
+  let seq = 0;
+  if (wv) {
+    wv.addEventListener("message", (e) => {
+      const m = e.data;
+      if (m.type === "reply") {
+        const p = pending.get(m.id);
+        if (!p) return;
+        pending.delete(m.id);
+        m.ok ? p.resolve(m.data) : p.reject(new Error(m.error || "Невідома помилка"));
+      } else if (m.type === "event") {
+        (listeners[m.name] || []).forEach((fn) => fn(m.data));
+      }
+    });
+  }
+  return {
+    call(method, args = {}) {
+      if (!wv) return Promise.reject(new Error("Сторінка відкрита не в програмі TimeTracker."));
+      const id = ++seq;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        wv.postMessage({ id, method, args });
+      });
+    },
+    on(name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
+  };
+})();
+
+/* ───────── helpers ───────── */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sum = (obj) => Object.values(obj).reduce((a, b) => a + b, 0);
+const pad = (n) => String(n).padStart(2, "0");
+const PALETTE = ["#3b82f6", "#f59e0b", "#10b981", "#f43f5e", "#8b5cf6", "#06b6d4", "#f97316", "#84cc16"];
+const OTHER = "Інше";
+const ICON = {
+  pause: '<svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+  play: '<svg class="i" viewBox="0 0 24 24"><path d="M6 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 6 4.5z"/></svg>',
+  eyeOff: '<svg class="i" viewBox="0 0 24 24"><path d="M10.73 5.08A10.74 10.74 0 0 1 21.94 11.65a1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49"/><path d="M14.08 14.16a3 3 0 0 1-4.24-4.24"/><path d="M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14"/><path d="m2 2 20 20"/></svg>',
+  clock: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  alert: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
+  x: '<svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+};
+
+function plural(n, forms) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return forms[1];
+  return forms[2];
+}
+function fmtDur(sec) {
+  const t = Math.round(sec), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60);
+  if (h) return `${h} год ${pad(m)} хв`;
+  if (m) return `${m} хв`;
+  return `${t} с`;
+}
+function fmtShort(sec) {
+  if (sec >= 3600) return `${(sec / 3600).toFixed(1).replace(".", ",")} год`;
+  return `${Math.max(1, Math.round(sec / 60))} хв`;
+}
+const clockOf = (secOfDay) => { const m = Math.floor(secOfDay / 60); return `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`; };
+const clockUnix = (unix) => { const d = new Date(unix * 1000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/* ───────── dates & periods ───────── */
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const sameDay = (a, b) => a.getTime() === b.getTime();
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => startOfDay(new Date());
+const fDayMonth = new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long" });
+const fWeekday = new Intl.DateTimeFormat("uk-UA", { weekday: "long" });
+const fWeekdayShort = new Intl.DateTimeFormat("uk-UA", { weekday: "short" });
+const fMonth = new Intl.DateTimeFormat("uk-UA", { month: "long" });
+
+const parseIso = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const fMonthShort = new Intl.DateTimeFormat("uk-UA", { month: "short" });
+
+function rangeOf(mode, anchor) {
+  if (mode === "all") return [state.firstDay ? parseIso(state.firstDay) : today(), today()];
+  if (mode === "day") return [anchor, anchor];
+  if (mode === "week") {
+    const monday = addDays(anchor, -((anchor.getDay() + 6) % 7));
+    return [monday, addDays(monday, 6)];
+  }
+  return [new Date(anchor.getFullYear(), anchor.getMonth(), 1), new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)];
+}
+function shiftAnchor(mode, anchor, dir) {
+  if (mode === "day") return addDays(anchor, dir);
+  if (mode === "week") return addDays(anchor, 7 * dir);
+  return new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1);
+}
+function periodLabel(mode, [from, to]) {
+  if (mode === "all") return "Весь час";
+  if (mode === "day") {
+    const diff = Math.round((today() - from) / 864e5);
+    const rel = diff === 0 ? "Сьогодні" : diff === 1 ? "Учора" : cap(fWeekday.format(from));
+    return `${rel}, ${fDayMonth.format(from)}`;
+  }
+  if (mode === "week") {
+    if (from.getMonth() === to.getMonth()) return `${from.getDate()}–${fDayMonth.format(to)}`;
+    return `${fDayMonth.format(from)} – ${fDayMonth.format(to)}`;
+  }
+  return `${cap(fMonth.format(from))} ${from.getFullYear()}`;
+}
+const PREV_LABEL = { day: "Попередній день", week: "Попередній тиждень", month: "Попередній місяць" };
+
+/* ───────── state ───────── */
+const state = {
+  mode: "day",
+  anchor: today(),
+  data: null,
+  prevTotal: 0,
+  error: null,
+  colors: new Map(),
+  showAllApps: false,
+  firstDay: null, // "yyyy-mm-dd" of the first record — start of "all time"
+  status: { paused: false, current: null, todayTotal: 0 },
+  update: { source: "none" },
+  lastLoad: 0,
+};
+let loadSeq = 0;
+
+const currentRange = () => rangeOf(state.mode, state.anchor);
+const includesToday = () => { const [f, t] = currentRange(); const d = today(); return f <= d && d <= t; };
+const colorOf = (name) => state.colors.get(name) || getComputedStyle(document.documentElement).getPropertyValue("--other").trim();
+
+function grouped(apps) {
+  const out = [];
+  let other = 0;
+  for (const [name, sec] of Object.entries(apps)) {
+    if (state.colors.has(name)) out.push([name, sec, state.colors.get(name)]);
+    else other += sec;
+  }
+  out.sort((a, b) => [...state.colors.keys()].indexOf(a[0]) - [...state.colors.keys()].indexOf(b[0]));
+  if (other > 0) out.push([OTHER, other, colorOf(OTHER)]);
+  return out;
+}
+
+/* ───────── loading ───────── */
+async function load({ quiet = false } = {}) {
+  const seq = ++loadSeq;
+  if (!quiet) renderSkeleton();
+  try {
+    if (state.mode === "all") state.firstDay = await host.call("firstDay");
+    const [from, to] = currentRange();
+    const [pf, pt] = rangeOf(state.mode, shiftAnchor(state.mode, from, -1));
+    const [data, prev] = await Promise.all([
+      host.call("overview", { from: iso(from), to: iso(to) }),
+      state.mode === "all" ? 0 : host.call("total", { from: iso(pf), to: iso(pt) }),
+    ]);
+    if (seq !== loadSeq) return;
+    state.data = data;
+    state.prevTotal = prev;
+    state.error = null;
+    state.lastLoad = Date.now();
+    state.colors = new Map(data.apps.slice(0, PALETTE.length).map((a, i) => [a.name, PALETTE[i]]));
+    render();
+  } catch (err) {
+    if (seq !== loadSeq) return;
+    state.error = err.message;
+    state.data = null;
+    render();
+  }
+}
+
+/* ───────── rendering ───────── */
+function render() {
+  renderPeriod();
+  renderSummary();
+  renderChart();
+  // With nothing recorded (or an error) one message in the chart card is enough.
+  $("#appsCard").hidden = !!state.error || !state.data.total;
+  renderApps();
+  renderHours();
+}
+
+function renderPeriod() {
+  const range = currentRange();
+  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  $("#periodLabel").textContent = periodLabel(state.mode, range);
+  const all = state.mode === "all";
+  $("#prevBtn").hidden = all;
+  $("#nextBtn").hidden = all;
+  $("#nextBtn").disabled = includesToday();
+  $("#todayBtn").hidden = all || includesToday();
+}
+
+function renderSkeleton() {
+  renderPeriod();
+  $("#appsCard").hidden = false;
+  $("#total").innerHTML = '<span class="sk" style="display:inline-block;width:220px;height:40px"></span>';
+  $("#meta").innerHTML = '<span class="sk" style="display:inline-block;width:320px;height:14px"></span>';
+  $("#chart").innerHTML = Array.from({ length: 4 }, () => '<div class="sk" style="height:24px;margin-bottom:8px"></div>').join("");
+  $("#apps").innerHTML = Array.from({ length: 6 }, () => '<div class="sk" style="height:28px;margin:4px 0 8px"></div>').join("");
+  $("#appsSub").textContent = "";
+}
+
+function stateBlock(kind, title, text, action) {
+  const icon = kind === "error" ? ICON.alert : ICON.clock;
+  return `<div class="state ${kind === "error" ? "state-error" : ""}">${icon}<b>${esc(title)}</b>${text ? `<p>${esc(text)}</p>` : ""}${action || ""}</div>`;
+}
+
+function emptyText() {
+  if (!includesToday()) return ["За цей період записів немає", "Можливо, комп'ютер був вимкнений або облік стояв на паузі."];
+  if (state.status.paused) return ["Облік на паузі", "Продовжте облік, і час почне записуватися."];
+  return ["Поки нічого не записано", "Облік уже ведеться — дані з'являться, щойно ви попрацюєте в будь-якій програмі."];
+}
+
+function renderSummary() {
+  const d = state.data;
+  if (state.error) {
+    $("#total").textContent = "—";
+    $("#meta").textContent = "";
+    return;
+  }
+  $("#total").textContent = d.total ? fmtDur(d.total) : "0 хв";
+  const parts = [];
+  if (d.total) {
+    const n = d.apps.length;
+    parts.push(`<span><b>${n}</b> ${plural(n, ["програма", "програми", "програм"])}</span>`);
+    if (state.mode === "day") {
+      parts.push(`<span>з <b>${clockUnix(d.firstUnix)}</b> до <b>${clockUnix(d.lastUnix)}</b></span>`);
+    } else {
+      const active = d.days.filter((x) => sum(x.apps) > 0).length;
+      parts.push(`<span><b>${active}</b> ${plural(active, ["активний день", "активні дні", "активних днів"])}</span>`);
+      parts.push(`<span>у середньому <b>${fmtDur(d.total / Math.max(active, 1))}</b> на день</span>`);
+    }
+    if (state.mode === "all" && state.firstDay) {
+      const first = parseIso(state.firstDay);
+      parts.push(`<span>облік з <b>${fDayMonth.format(first)} ${first.getFullYear()}</b></span>`);
+    }
+  }
+  const prevName = state.mode === "day" && includesToday() ? "Учора" : PREV_LABEL[state.mode];
+  if (state.prevTotal > 0) parts.push(`<span>${prevName}: <b>${fmtDur(state.prevTotal)}</b></span>`);
+  $("#meta").innerHTML = parts.join("");
+}
+
+// "All time" longer than two months is shown by month, otherwise by day.
+const byMonth = () => state.mode === "all" && state.data && state.data.days.length > 62;
+
+function renderChart() {
+  const isDay = state.mode === "day";
+  $("#chartTitle").textContent = isDay ? "Хронологія дня" : byMonth() ? "По місяцях" : "По днях";
+  $("#chartSub").textContent = isDay
+    ? "кожна програма — окремий рядок; наведіть на відрізок, щоб побачити час"
+    : byMonth() ? "клікніть стовпчик, щоб відкрити цей місяць" : "клікніть стовпчик, щоб відкрити цей день";
+  if (state.error || !state.data.total) $("#chartSub").textContent = "";
+  if (state.error) {
+    $("#chart").innerHTML = stateBlock("error", "Не вдалося прочитати дані", state.error,
+      '<button class="btn" type="button" data-action="retry">Спробувати знову</button>');
+    return;
+  }
+  if (!state.data.total) {
+    const [t, p] = emptyText();
+    $("#chart").innerHTML = stateBlock("empty", t, p);
+    return;
+  }
+  $("#chart").innerHTML = isDay ? timelineHtml(state.data) : byMonth() ? monthsHtml(state.data) : daysHtml(state.data);
+}
+
+function timelineHtml(d) {
+  const segs = d.timeline;
+  const laneApps = d.apps.slice(0, 7).map((a) => a.name);
+  const lanes = laneApps.map((name) => ({ name, total: d.apps.find((a) => a.name === name).seconds, color: colorOf(name) }));
+  const rest = d.apps.slice(7);
+  if (rest.length) lanes.push({ name: OTHER, total: rest.reduce((s, a) => s + a.seconds, 0), color: colorOf(OTHER), isOther: true });
+
+  // Zoom to the active part of the day (at least 6 hours), so short days are readable.
+  let minS = Math.min(...segs.map((s) => s.s)), maxE = Math.max(...segs.map((s) => s.e));
+  const day0 = state.anchor.getTime() / 1000;
+  const nowSec = Date.now() / 1000 - day0;
+  const isToday = sameDay(state.anchor, today());
+  if (isToday) maxE = Math.max(maxE, nowSec);
+  let h0 = Math.floor(minS / 3600), h1 = Math.min(24, Math.ceil(maxE / 3600));
+  if (h1 - h0 < 6) { h1 = Math.min(24, h0 + 6); h0 = Math.max(0, h1 - 6); }
+  const span = (h1 - h0) * 3600;
+  const pct = (s) => ((s - h0 * 3600) / span) * 100;
+  const nowLine = isToday && nowSec <= h1 * 3600 ? `<span class="now-line" style="left:${pct(nowSec)}%"></span>` : "";
+
+  const rows = lanes.map((lane) => {
+    const mine = segs.filter((s) => (lane.isOther ? !laneApps.includes(s.app) : s.app === lane.name));
+    const bars = mine.map((s) =>
+      `<i class="seg" style="left:${pct(s.s)}%;width:${((s.e - s.s) / span) * 100}%;background:${lane.isOther ? colorOf(OTHER) : lane.color}" data-tip="${esc(s.app)}\n${clockOf(s.s)}–${clockOf(s.e)} · ${fmtDur(s.e - s.s)}"></i>`).join("");
+    return `<div class="lane-name" title="${esc(lane.name)}"><i class="sw" style="background:${lane.color}"></i><span>${esc(lane.name)}</span></div>
+      <div class="lane-track" style="--hours:${h1 - h0}">${bars}${nowLine}</div>
+      <div class="lane-total">${fmtDur(lane.total)}</div>`;
+  }).join("");
+
+  const step = h1 - h0 > 12 ? 2 : 1;
+  const ticks = [];
+  for (let h = h0; h <= h1; h += step) ticks.push(`<span style="left:${((h - h0) / (h1 - h0)) * 100}%">${pad(h % 24)}:00</span>`);
+  if ((h1 - h0) % step) ticks.push(`<span style="left:100%">${pad(h1 % 24)}:00</span>`);
+  return `<div class="lanes">${rows}<div></div><div class="axis" aria-hidden="true">${ticks.join("")}</div><div></div></div>`;
+}
+
+function columnsHtml(items, { clickable, dense }) {
+  const max = Math.max(1, ...items.map((it) => sum(it.apps)));
+  const cols = items.map((it) => {
+    const tot = sum(it.apps);
+    const parts = grouped(it.apps);
+    const segs = parts.map(([, sec, color]) => `<i style="height:${(sec / tot) * 100}%;background:${color}"></i>`).join("");
+    const tip = `${it.full}: ${tot ? fmtDur(tot) : "немає записів"}` +
+      parts.slice(0, 4).map(([name, sec]) => `\n${name} — ${fmtDur(sec)}`).join("");
+    const tag = clickable && !it.future ? "button" : "div";
+    const what = it.open && it.open.startsWith("month:") ? "місяць" : "день";
+    const attrs = tag === "button" ? ` type="button" data-open="${it.open}" aria-label="${esc(it.full)}: ${tot ? fmtDur(tot) : "немає записів"}. Відкрити ${what}"` : "";
+    const tipAttr = it.future ? "" : ` data-tip="${esc(tip)}"`;
+    return `<${tag} class="col ${it.future ? "is-future" : ""}"${attrs}${tipAttr}>
+        <span class="col-total">${tot ? fmtShort(tot) : ""}</span>
+        <span class="col-plot"><span class="col-bar" style="height:${(tot / max) * 100}%">${segs}</span></span>
+        <span class="col-label ${it.isToday ? "is-today" : ""}">${esc(it.label)}</span></${tag}>`;
+  }).join("");
+  return `<div class="cols ${dense ? "is-dense" : ""} ${items.length <= 7 ? "is-wide" : ""}">${cols}</div>`;
+}
+
+function daysHtml(d) {
+  const t = today();
+  const items = d.days.map((day) => {
+    const [y, m, dd] = day.date.split("-").map(Number);
+    const date = new Date(y, m - 1, dd);
+    const label = state.mode === "week" ? `${fWeekdayShort.format(date)} ${dd}`
+      : state.mode === "all" && (dd === 1 || day === d.days[0]) ? `${dd} ${fMonthShort.format(date)}` : String(dd);
+    return {
+      open: `day:${day.date}`, apps: day.apps, label, full: `${cap(fWeekday.format(date))}, ${fDayMonth.format(date)}`,
+      isToday: sameDay(date, t), future: date > t,
+    };
+  });
+  return columnsHtml(items, { clickable: true, dense: state.mode !== "week" });
+}
+
+function monthsHtml(d) {
+  const months = new Map();
+  for (const day of d.days) {
+    const key = day.date.slice(0, 7);
+    if (!months.has(key)) months.set(key, {});
+    const acc = months.get(key);
+    for (const [name, sec] of Object.entries(day.apps)) acc[name] = (acc[name] || 0) + sec;
+  }
+  const now = today();
+  const items = [...months].map(([key, apps]) => {
+    const date = parseIso(`${key}-01`);
+    const isCurrent = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    const label = date.getMonth() === 0 || key === [...months.keys()][0]
+      ? `${fMonthShort.format(date)} ${String(date.getFullYear()).slice(2)}` : fMonthShort.format(date);
+    return { open: `month:${key}`, apps, label, full: `${cap(fMonth.format(date))} ${date.getFullYear()}`, isToday: isCurrent };
+  });
+  return columnsHtml(items, { clickable: true, dense: items.length > 14 });
+}
+
+function renderHours() {
+  const show = state.mode !== "day" && !state.error && state.data && state.data.total > 0;
+  $("#hoursCard").hidden = !show;
+  if (!show) return;
+  const items = state.data.hours.map((apps, h) => ({
+    apps, label: h % 3 === 0 ? pad(h) : "", full: `${pad(h)}:00–${pad((h + 1) % 24)}:00`,
+  }));
+  $("#hours").innerHTML = columnsHtml(items, { clickable: false, dense: true });
+}
+
+function renderApps() {
+  const box = $("#apps");
+  if (state.error) { box.innerHTML = ""; $("#appsSub").textContent = ""; return; }
+  const apps = state.data.apps;
+  $("#appsSub").textContent = apps.length ? "наведіть на рядок, щоб виключити програму з обліку" : "";
+  if (!apps.length) {
+    box.innerHTML = stateBlock("empty", "Програм поки немає", "Тут з'явиться список програм, відсортований за часом.");
+    return;
+  }
+  const max = apps[0].seconds, total = state.data.total;
+  const shown = state.showAllApps ? apps : apps.slice(0, 12);
+  const rows = shown.map((a) => {
+    const p = (a.seconds / total) * 100;
+    const color = colorOf(a.name);
+    return `<li class="app-item">
+      <div class="app-row">
+        <i class="sw" style="background:${color}"></i>
+        <span class="app-name" title="${esc(a.name)} · ${esc(a.exe)}">${esc(a.name)}</span>
+        <span class="bar" aria-hidden="true"><i style="width:${Math.max(1, (a.seconds / max) * 100)}%;background:${color}"></i></span>
+        <span class="dur">${fmtDur(a.seconds)}</span>
+        <span class="pct">${p < 1 ? "<1" : Math.round(p)}%</span>
+      </div>
+      <button class="row-action" type="button" data-exclude="${esc(a.exe)}" data-name="${esc(a.name)}"
+        aria-label="Не враховувати ${esc(a.name)}" title="Не враховувати">${ICON.eyeOff}</button>
+    </li>`;
+  }).join("");
+  const more = apps.length > 12
+    ? `<button class="link-btn list-more" type="button" data-action="toggle-apps">${state.showAllApps ? "Згорнути" : `Показати всі (${apps.length})`}</button>`
+    : "";
+  box.innerHTML = `<ul class="list" aria-label="Програми за часом">${rows}</ul>${more}`;
+}
+
+function renderStatus() {
+  const s = state.status;
+  const el = $("#status");
+  el.classList.toggle("is-paused", s.paused);
+  $("#statusText").innerHTML = s.paused
+    ? "Облік на паузі"
+    : s.current ? `Зараз: <span class="now">${esc(s.current)}</span>` : "Облік ведеться";
+  $("#pausedBanner").hidden = !s.paused;
+  const btn = $("#pauseBtn");
+  btn.innerHTML = s.paused ? `${ICON.play}Продовжити` : `${ICON.pause}Пауза`;
+  btn.setAttribute("aria-label", s.paused ? "Продовжити облік" : "Поставити облік на паузу");
+}
+
+/* ───────── tooltip & toast ───────── */
+const tip = $("#tip");
+document.addEventListener("mousemove", (e) => {
+  const el = e.target.closest && e.target.closest("[data-tip]");
+  if (!el) { tip.classList.remove("is-on"); return; }
+  tip.textContent = el.dataset.tip;
+  tip.classList.add("is-on");
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 16;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 12;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+});
+document.addEventListener("mouseleave", () => tip.classList.remove("is-on"));
+
+let toastTimer = 0;
+function toast(text, actionLabel, action) {
+  $("#toastText").textContent = text;
+  const btn = $("#toastAction");
+  btn.hidden = !actionLabel;
+  btn.textContent = actionLabel || "";
+  btn.onclick = actionLabel ? () => { hideToast(); action(); } : null;
+  $("#toast").classList.add("is-on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, actionLabel ? 7000 : 4000);
+}
+function hideToast() { $("#toast").classList.remove("is-on"); }
+
+/* ───────── actions ───────── */
+function setMode(mode) {
+  if (mode === state.mode) return;
+  // Keep the visible date when zooming out; going back to "day" lands on today if it's inside the period.
+  if (state.mode === "all") state.anchor = today();
+  else if (mode === "day" && includesToday()) state.anchor = today();
+  else if (mode === "day") state.anchor = currentRange()[0];
+  state.mode = mode;
+  state.showAllApps = false;
+  load();
+}
+
+/** Drill down from a column: "day:2026-10-12" or "month:2026-10". */
+function openPeriod(ref) {
+  const [kind, value] = ref.split(":");
+  state.mode = kind;
+  state.anchor = kind === "day" ? parseIso(value) : parseIso(`${value}-01`);
+  state.showAllApps = false;
+  load();
+}
+
+function go(dir) {
+  if (state.mode === "all" || (dir > 0 && includesToday())) return;
+  state.anchor = shiftAnchor(state.mode, state.anchor, dir);
+  if (state.anchor > today()) state.anchor = today();
+  load();
+}
+
+async function excludeApp(exe, name) {
+  try {
+    await host.call("exclude", { exe });
+    await load({ quiet: true });
+    toast(`«${name}» більше не враховується`, "Скасувати", async () => {
+      try { await host.call("include", { exe }); await load({ quiet: true }); }
+      catch (err) { toast(`Не вдалося повернути: ${err.message}`); }
+    });
+  } catch (err) {
+    toast(`Не вдалося виключити програму: ${err.message}`);
+  }
+}
+
+async function togglePause() {
+  const value = !state.status.paused;
+  state.status = { ...state.status, paused: value, current: value ? null : state.status.current };
+  renderStatus();
+  try { await host.call("setPaused", { value }); }
+  catch (err) { toast(`Не вдалося змінити стан обліку: ${err.message}`); }
+}
+
+async function exportCsv() {
+  const [from, to] = currentRange();
+  try {
+    const path = await host.call("export", { from: iso(from), to: iso(to) });
+    if (path) toast(`Збережено: ${path.split("\\").pop()}`, "Показати в папці", () => host.call("revealFile", { path }));
+  } catch (err) {
+    toast(`Не вдалося зберегти файл: ${err.message}`);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.closest("dialog")) return; // the settings dialog has its own handler
+  if (t.dataset.mode) setMode(t.dataset.mode);
+  else if (t.dataset.exclude) excludeApp(t.dataset.exclude, t.dataset.name);
+  else if (t.dataset.open) openPeriod(t.dataset.open);
+  else if (t.dataset.action === "retry") load();
+  else if (t.dataset.action === "toggle-apps") { state.showAllApps = !state.showAllApps; renderApps(); }
+  else if (t.dataset.action === "resume") togglePause();
+  else if (t.dataset.action === "update-go") installUpdate();
+  else if (t.dataset.action === "update-later") { state.update.dismissed = true; renderUpdate(); }
+});
+$("#pauseBtn").addEventListener("click", togglePause);
+$("#exportBtn").addEventListener("click", exportCsv);
+$("#prevBtn").addEventListener("click", () => go(-1));
+$("#nextBtn").addEventListener("click", () => go(1));
+$("#todayBtn").addEventListener("click", () => { state.anchor = today(); load(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, dialog[open]") || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "ArrowRight") go(1);
+});
+
+/* ───────── settings ───────── */
+const dlg = $("#settings");
+let settings = null, programs = [];
+
+async function openSettings() {
+  $("#settingsBody").innerHTML = '<div class="sk" style="height:220px;margin:12px 0"></div>';
+  dlg.showModal();
+  try {
+    [settings, programs] = await Promise.all([host.call("settings"), host.call("programs")]);
+    renderSettings();
+  } catch (err) {
+    $("#settingsBody").innerHTML = stateBlock("error", "Не вдалося відкрити налаштування", err.message);
+  }
+}
+
+function renderSettings() {
+  const excluded = new Set(settings.exclude.map((x) => x.exe));
+  const options = programs.filter((p) => !excluded.has(p.exe))
+    .map((p) => `<option value="${esc(p.exe)}">${esc(p.name)}</option>`).join("");
+  const themeBtn = (v, label) => `<button type="button" data-theme-choice="${v}" aria-pressed="${settings.theme === v}">${label}</button>`;
+  const list = settings.exclude.length
+    ? settings.exclude.map((x) => `<li><span class="name">${esc(x.name)} <span class="exe">${esc(x.exe)}</span></span>
+        <button class="btn btn-ghost" type="button" data-include="${esc(x.exe)}">Прибрати</button></li>`).join("")
+    : '<li class="excl-empty">Усі програми враховуються.</li>';
+
+  $("#settingsBody").innerHTML = `
+    <div class="section">
+      <h3>Запуск</h3>
+      <div class="field">
+        <div class="field-text"><label for="autostart">Запускати разом із Windows</label>
+          <p class="help">Програма стартує згорнутою в трей і одразу починає облік.</p></div>
+        <input class="switch" id="autostart" type="checkbox" role="switch" ${settings.autostart ? "checked" : ""}>
+      </div>
+    </div>
+    <div class="section">
+      <h3>Вигляд</h3>
+      <div class="field">
+        <div class="field-text"><span class="label">Тема</span></div>
+        <div class="segmented" role="group" aria-label="Тема">${themeBtn("system", "Як у системі")}${themeBtn("light", "Світла")}${themeBtn("dark", "Темна")}</div>
+      </div>
+    </div>
+    <div class="section">
+      <h3>Простій</h3>
+      <div class="field">
+        <div class="field-text"><label for="idle">Не рахувати час без дій довше ніж</label>
+          <p class="help">Якщо ви не торкаєтеся миші й клавіатури, час не записується. Збільште, якщо часто дивитеся відео або лекції.</p></div>
+        <span class="stepper"><button type="button" data-step="-1" aria-label="Менше">−</button><input id="idle" type="number" min="1" max="120" value="${settings.idleMinutes}" inputmode="numeric"><button type="button" data-step="1" aria-label="Більше">+</button></span>
+        <span class="unit">хв</span>
+      </div>
+      <p class="error-text" id="idleError" hidden>Введіть число від 1 до 120.</p>
+    </div>
+    <div class="section">
+      <h3>Не враховувати</h3>
+      <ul class="excl-list">${list}</ul>
+      <div class="add-row">
+        <input id="addExe" list="programList" placeholder="Почніть вводити: blender.exe, chrome.exe…" aria-label="Програма, яку не треба враховувати">
+        <datalist id="programList">${options}</datalist>
+        <button class="btn" type="button" id="addExeBtn">Додати</button>
+      </div>
+      <p class="help">Час у цих програмах не рахується і зникає зі статистики, зокрема за минулі дні. Сам TimeTracker і екран блокування не рахуються ніколи.</p>
+    </div>
+    <div class="section" id="updSection"></div>`;
+  renderUpdate();
+}
+
+/* ───────── updates (see Core/Updater.cs) ───────── */
+function updateStatusLine(u) {
+  if (u.busy === "check") return ["Перевіряю…", ""];
+  if (u.busy === "install") return ["Завантажую оновлення…", ""];
+  if (u.error) return [`Не вдалося: ${u.error}`, "is-error"];
+  if (u.ready) return [`Версію ${u.latest} завантажено — встановиться під час наступного запуску.`, "is-accent"];
+  if (u.available) return [`Доступна версія ${u.latest}.`, "is-accent"];
+  if (u.checked) return ["У вас остання версія.", "is-ok"];
+  return ["", ""];
+}
+
+function renderUpdate() {
+  const u = state.update;
+  // Bar under the header
+  const showBar = (u.available || u.ready) && !u.dismissed && !u.busy;
+  $("#updateBar").hidden = !showBar;
+  if (showBar) {
+    $("#updateText").textContent = u.ready
+      ? `Оновлення ${u.latest} завантажено. Воно встановиться під час наступного запуску.`
+      : `Доступна нова версія TimeTracker ${u.latest}.`;
+    $("#updateGo").textContent = u.ready ? "Перезапустити зараз" : "Оновити";
+  }
+  $("#settingsBtn").classList.toggle("has-dot", !!(u.available || u.ready));
+
+  // Section in the settings dialog
+  const box = $("#updSection");
+  if (!box || !settings) return;
+  const dev = u.source !== "release";
+  const [text, cls] = updateStatusLine(u);
+  const action = u.ready ? "Перезапустити й оновити" : u.available ? "Завантажити оновлення" : "";
+  box.innerHTML = `
+    <h3>Оновлення</h3>
+    <div class="field">
+      <div class="field-text"><label for="autoUpdate">Оновлювати автоматично</label>
+        <p class="help">${dev
+          ? "Ця збірка запущена з Visual Studio — оновлення працюють лише в exe з GitHub."
+          : `Версія ${esc(settings.version)}. Раз на кілька годин програма перевіряє GitHub і тихо завантажує нову версію.`}</p></div>
+      <input class="switch" id="autoUpdate" type="checkbox" role="switch" ${settings.autoUpdate ? "checked" : ""} ${dev ? "disabled" : ""}>
+    </div>
+    <p class="status-line ${cls}" role="status">${esc(text)}</p>
+    <div class="btn-row">
+      <button class="btn" type="button" data-upd="check" ${dev || u.busy ? "disabled" : ""}>Перевірити зараз</button>
+      ${action && !u.busy ? `<button class="btn btn-primary" type="button" data-upd="go">${action}</button>` : ""}
+      <button class="btn btn-ghost" type="button" data-upd="repo">Усі версії на GitHub</button>
+    </div>`;
+}
+
+async function checkUpdates() {
+  Object.assign(state.update, { busy: "check", error: null });
+  renderUpdate();
+  try { Object.assign(state.update, await host.call("checkUpdates")); }
+  catch (err) { state.update.error = err.message; }
+  state.update.busy = false;
+  renderUpdate();
+}
+
+async function installUpdate() {
+  if (state.update.ready) { host.call("restartToUpdate"); return; }
+  Object.assign(state.update, { busy: "install", error: null });
+  renderUpdate();
+  try { Object.assign(state.update, await host.call("installUpdate")); }
+  catch (err) { state.update.error = err.message; }
+  state.update.busy = false;
+  renderUpdate();
+}
+
+async function saveSettings(patch) {
+  try {
+    settings = await host.call("updateSettings", patch);
+    renderSettings();
+    return true;
+  } catch (err) {
+    toast(`Не вдалося зберегти: ${err.message}`);
+    return false;
+  }
+}
+
+function applyTheme(pref) {
+  const dark = pref === "dark" || (pref === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  window.ttTheme = pref;
+  render();
+}
+
+let idleTimer = 0;
+function commitIdle(value) {
+  const ok = Number.isInteger(value) && value >= 1 && value <= 120;
+  $("#idleError").hidden = ok;
+  if (!ok) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => saveSettings({ idleMinutes: value }), 400);
+}
+
+dlg.addEventListener("click", async (e) => {
+  if (e.target === dlg) { dlg.close(); return; } // click on the backdrop
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.hasAttribute("data-close")) dlg.close();
+  else if (b.dataset.themeChoice) {
+    applyTheme(b.dataset.themeChoice);
+    await saveSettings({ theme: b.dataset.themeChoice });
+  } else if (b.dataset.step) {
+    const input = $("#idle");
+    const v = Math.min(120, Math.max(1, (parseInt(input.value, 10) || settings.idleMinutes) + Number(b.dataset.step)));
+    input.value = v;
+    commitIdle(v);
+  } else if (b.dataset.include) {
+    try {
+      settings = await host.call("include", { exe: b.dataset.include });
+      renderSettings();
+      load({ quiet: true });
+    } catch (err) {
+      toast(`Не вдалося прибрати: ${err.message}`);
+    }
+  } else if (b.id === "addExeBtn") addExclusion();
+  else if (b.dataset.upd === "check") checkUpdates();
+  else if (b.dataset.upd === "go") installUpdate();
+  else if (b.dataset.upd === "repo") host.call("openRepo");
+});
+dlg.addEventListener("change", (e) => {
+  if (e.target.id === "autostart") saveSettings({ autostart: e.target.checked });
+  else if (e.target.id === "autoUpdate") saveSettings({ autoUpdate: e.target.checked });
+});
+dlg.addEventListener("input", (e) => {
+  if (e.target.id === "idle") commitIdle(Number(e.target.value));
+});
+dlg.addEventListener("keydown", (e) => {
+  if (e.target.id === "addExe" && e.key === "Enter") addExclusion();
+});
+$("#dataFolderBtn").addEventListener("click", () => host.call("openDataFolder"));
+
+async function addExclusion() {
+  const input = $("#addExe");
+  let exe = input.value.trim().toLowerCase();
+  if (!exe) return;
+  const byName = programs.find((p) => p.name.toLowerCase() === exe);
+  if (byName) exe = byName.exe;
+  if (!exe.endsWith(".exe")) exe += ".exe";
+  try {
+    settings = await host.call("exclude", { exe });
+    renderSettings();
+    load({ quiet: true });
+    $("#addExe").focus();
+  } catch (err) {
+    toast(`Не вдалося додати: ${err.message}`);
+  }
+}
+
+$("#settingsBtn").addEventListener("click", openSettings);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+  if ((window.ttTheme || "system") !== "system") return;
+  applyTheme("system");
+  host.call("systemTheme", { dark: e.matches }).catch(() => {});
+});
+
+/* ───────── live updates from the host ───────── */
+host.on("status", (s) => {
+  state.status = s;
+  renderStatus();
+  // While looking at a period that includes today, keep the numbers fresh ("all time" less often — it's heavier).
+  const every = state.mode === "all" ? 60000 : 10000;
+  if (includesToday() && !dlg.open && Date.now() - state.lastLoad > every) load({ quiet: true });
+});
+host.on("update", (u) => {
+  Object.assign(state.update, u);
+  renderUpdate();
+});
+host.on("shown", () => {
+  if (state.mode === "day" && !includesToday() && Date.now() - state.lastLoad > 6 * 3600e3) state.anchor = today();
+  load({ quiet: true });
+});
+
+/* ───────── start ───────── */
+renderStatus();
+host.call("status").then((s) => { state.status = s; renderStatus(); }).catch(() => {});
+host.call("updateState").then((u) => { Object.assign(state.update, u); renderUpdate(); }).catch(() => {});
+load();
+</script>
+</body>
+</html>

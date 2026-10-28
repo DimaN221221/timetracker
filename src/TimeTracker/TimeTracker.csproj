@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- only for NotifyIcon (the tray icon) -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>TimeTracker</RootNamespace>
+    <AssemblyName>TimeTracker</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- keep dist\ down to the exe alone -->
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Product>TimeTracker</Product>
+    <Description>Облік часу в програмах</Description>
+    <Version>2.1.0</Version>
+    <Copyright>© 2026</Copyright>
+  </PropertyGroup>
+
+  <!-- WinForms is here only for the tray; keep its names out of the global usings so they
+       don't clash with WPF (Application, MessageBox, Brush...). -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- The UI lives in wwwroot and is compiled into the exe, so the app is a single file.
+       Edit wwwroot\index.html and rebuild; the resource names become "wwwroot/<path>". -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="Assets/app.ico" />
+    <EmbeddedResource Include="Assets\paused.ico" LogicalName="Assets/paused.ico" />
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+</Project>
